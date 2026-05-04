@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Regalo Mamá — Prototipo Web</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Lato:wght@300;400;700&family=Great+Vibes&display=swap" rel="stylesheet">
+<style>
+  html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; background: #1a1518; font-family: "Lato", system-ui, sans-serif; overflow: hidden; }
+  @keyframes rm-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes rm-pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+  @keyframes rm-fadein { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .rm-fadein { animation: rm-fadein 0.5s ease-out; }
+  * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(196,98,122,0.3); border-radius: 10px; }
+  ::-webkit-scrollbar-track { background: rgba(0,0,0,0.04); }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="browser-window.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel" src="photo-placeholder.jsx"></script>
+<script type="text/babel" src="tokens.jsx"></script>
+<script type="text/babel" src="screen-slides.jsx"></script>
+<script type="text/babel" src="screen-intro.jsx"></script>
+<script type="text/babel" src="screen-presenter.jsx"></script>
+
+<script type="text/babel" src="desktop-home.jsx"></script>
+<script type="text/babel" src="desktop-crear.jsx"></script>
+<script type="text/babel" src="desktop-compartir.jsx"></script>
+
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "autoAdvance": true,
+    "tipo": "romantica",
+    "screen": "home",
+    "browserChrome": false
+  }/*EDITMODE-END*/;
+
+  function DesktopApp({ tweaks, setTweak }) {
+    const t = window.TOKENS;
+    const [screen, setScreen] = React.useState(tweaks.screen || "home");
+    const [codigo] = React.useState("a3f7b29c-8d12-4e67-9b4a-2c5e8d1f6a3b");
+    const [form, setForm] = React.useState({
+      nombre: "",
+      mensajeGeneral: "",
+      tipo: tweaks.tipo || "romantica",
+      cancion: null,
+      fotos: [],
+    });
+
+    // Sync tweak → state
+    React.useEffect(() => {
+      if (tweaks.tipo && tweaks.tipo !== form.tipo) {
+        setForm(f => ({ ...f, tipo: tweaks.tipo }));
+      }
+    }, [tweaks.tipo]);
+
+    const regalo = {
+      codigo,
+      nombre: form.nombre || "Mamá",
+      mensaje: form.mensajeGeneral,
+      mensajeGeneral: form.mensajeGeneral,
+      tipo: form.tipo,
+      cancion: form.cancion,
+      fotos: form.fotos,
+    };
+
+    let content;
+    if (screen === "home") content = <window.DesktopHome onStart={() => setScreen("crear")} />;
+    else if (screen === "crear") content = <window.DesktopCrear state={form} setState={setForm}
+      onBack={() => setScreen("home")} onGenerar={() => setScreen("compartir")} mode="crear" />;
+    else if (screen === "editar") content = <window.DesktopCrear state={{ ...form, isEdit: true }} setState={setForm}
+      onBack={() => setScreen("compartir")} onGenerar={() => setScreen("compartir")} mode="editar" />;
+    else if (screen === "compartir") content = <window.DesktopCompartir regalo={regalo}
+      onView={() => setScreen("presenter")} onEdit={() => setScreen("editar")} onNew={() => { setScreen("home"); }} />;
+    else if (screen === "presenter") content = <window.Presenter regalo={regalo}
+      onShare={() => setScreen("compartir")} onExit={() => setScreen("compartir")} />;
+
+    const shortCode = codigo.slice(0, 8);
+    const urlMap = {
+      home: "regalomama.app",
+      crear: "regalomama.app/crear",
+      editar: "regalomama.app/editar/" + shortCode,
+      compartir: "regalomama.app/regalo/" + shortCode,
+      presenter: "regalomama.app/regalo/" + shortCode,
+    };
+    const tabs = [
+      { title: "Regalo Mamá · " + (screen === "home" ? "Inicio" : screen === "crear" ? "Crear" : screen === "editar" ? "Editar" : screen === "compartir" ? "Listo" : "Presentación") },
+      { title: "Pinterest · ideas día de la madre" },
+      { title: "Spotify" },
+    ];
+
+    // Letterbox only when the fake browser frame is enabled. Without the frame,
+    // the prototype behaves like a normal responsive page.
+    const chromeW = 1320, chromeH = 860;
+    const [scale, setScale] = React.useState(1);
+    React.useEffect(() => {
+      const recalc = () => {
+        if (tweaks.browserChrome === false) {
+          setScale(1);
+          return;
+        }
+        const pad = 24;
+        const sx = (window.innerWidth - pad) / chromeW;
+        const sy = (window.innerHeight - pad) / chromeH;
+        setScale(Math.max(0.2, Math.min(1.45, sx, sy)));
+      };
+      recalc();
+      window.addEventListener("resize", recalc);
+      return () => window.removeEventListener("resize", recalc);
+    }, []);
+
+    return (
+      <div style={{
+        position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+        background: tweaks.browserChrome !== false
+          ? "radial-gradient(ellipse at center, #2a1f25 0%, #0f0a0d 100%)"
+          : "#fffaf6",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          width: tweaks.browserChrome !== false ? chromeW : "100vw",
+          height: tweaks.browserChrome !== false ? chromeH : "100vh",
+          transform: `scale(${scale})`, transformOrigin: "center center",
+          flexShrink: 0, overflow: "hidden",
+        }}>
+          {tweaks.browserChrome !== false ? (
+            <window.ChromeWindow tabs={tabs} activeIndex={0} url={urlMap[screen]} width={chromeW} height={chromeH}>
+              {content}
+            </window.ChromeWindow>
+          ) : (
+            <div style={{ width: "100%", height: "100%", overflow: "auto", background: "white" }}>
+              {content}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function App() {
+    const [tweaks, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
+    return (
+      <React.Fragment>
+        <DesktopApp tweaks={tweaks} setTweak={setTweak} />
+        <window.TweaksPanel>
+          <window.TweakSection label="Navegación" />
+          <p style={{ fontSize: 10.5, color: "rgba(0,0,0,0.55)", margin: "0 0 4px", lineHeight: 1.4 }}>
+            Salta entre pantallas del flujo (también puedes usar los botones del prototipo).
+          </p>
+          <window.TweakSelect
+            label="Pantalla actual"
+            value={tweaks.screen || "home"}
+            options={["home", "crear", "compartir", "editar", "presenter"]}
+            onChange={(v) => setTweak("screen", v)}
+          />
+          <window.TweakSection label="Estilo del regalo" />
+          <window.TweakSelect
+            label="Estilo activo"
+            value={tweaks.tipo || "romantica"}
+            options={["romantica", "cinematica", "elegante"]}
+            onChange={(v) => setTweak("tipo", v)}
+          />
+          <window.TweakToggle
+            label="Auto-avance del slide"
+            value={tweaks.autoAdvance}
+            onChange={(v) => setTweak("autoAdvance", v)}
+          />
+          <window.TweakSection label="Marco" />
+          <window.TweakToggle
+            label="Mostrar marco de navegador"
+            value={tweaks.browserChrome !== false}
+            onChange={(v) => setTweak("browserChrome", v)}
+          />
+        </window.TweaksPanel>
+      </React.Fragment>
+    );
+  }
+
+  function mount() {
+    if (!window.ChromeWindow || !window.DesktopHome || !window.DesktopCrear ||
+        !window.DesktopCompartir || !window.Presenter || !window.IntroRomantica ||
+        !window.SlideRomantica || !window.TweaksPanel || !window.useTweaks ||
+        !window.TOKENS || !window.PhotoPlaceholder) {
+      return setTimeout(mount, 30);
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  }
+  mount();
+</script>
+</body>
+</html>
